@@ -4,11 +4,23 @@ const formidable = require('formidable')
 const fs = require('fs')
 
 module.exports.getFriend = async (req,res) => {
+    let friendsmessages = []
     try {
-        const Friends = await Users.find({});
-        const filteredfriends = Friends.filter(friend => friend.id !== req.myId)
+        const Friends = await Users.find({
+            _id:{
+                $ne : req.myId
+            }
+        });
+        for(let i=0 ; i < Friends.length ; i++ ){
+            let lastMessage = await getLastMessage(req.myId,Friends[i]._id);
+            friendsmessages = [...friendsmessages,{
+                friendDetails:Friends[i],msgDetails:lastMessage
+            }]
+        }
+        // const filteredfriends = Friends.filter(friend => friend.id !== req.myId)
+        
         res.status(200).json({
-            success:true,friends:filteredfriends
+            success:true,friends:friendsmessages
         })
     } catch (error) {
         res.status(404).json({
@@ -17,6 +29,35 @@ module.exports.getFriend = async (req,res) => {
             }
         })
     }
+}
+
+const getLastMessage = async (myId,friendId)=>{
+    const LastMessage = await Messages.findOne({
+        $or:[{
+            $and :[{
+                senderId : {
+                    $eq : myId
+                }
+                },{
+                    receiverId:{
+                        $eq : friendId
+                    }
+                }
+            ]
+        },{
+            $and: [{
+                receiverId:{
+                    $eq : myId
+                }
+            },{
+                senderId:{
+                    $eq : friendId
+                }
+            }]
+        }]
+    }).sort({updatedAt : -1});
+
+    return LastMessage;
 }
 
 module.exports.sendMessage = async (req,res) => {
@@ -47,9 +88,33 @@ module.exports.getAllmessages = async (req,res)=>{
     const myId = req.myId
     const friendId = req.params.id
     try {
-        let allMessages = await Messages.find({})
-        allMessages = allMessages.filter(m => m.senderId === myId && m.receiverId === friendId || 
-            m.receiverId === myId && m.senderId === friendId)
+        let allMessages = await Messages.find({
+            $or:[{
+                $and :[{
+                    senderId : {
+                        $eq : myId
+                    }
+                    },{
+                        receiverId:{
+                            $eq : friendId
+                        }
+                    }
+                ]
+            },{
+                $and: [{
+                    receiverId:{
+                        $eq : myId
+                    }
+                },{
+                    senderId:{
+                        $eq : friendId
+                    }
+                }]
+            }]
+        })
+
+        // allMessages = allMessages.filter(m => m.senderId === myId && m.receiverId === friendId || 
+        //     m.receiverId === myId && m.senderId === friendId)
         res.status(200).json({
             status:true,
             message:allMessages
